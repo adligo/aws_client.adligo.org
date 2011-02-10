@@ -3,7 +3,12 @@ package org.adligo.aws_client;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.adligo.i.log.client.Log;
+import org.adligo.i.log.client.LogFactory;
+
 public class DefaultPollingDaemon implements Runnable, I_PollingDaemon {
+	private static final Log log = LogFactory.getLog(DefaultPollingDaemon.class);
+	
 	private volatile List<I_PolledItem> items = new ArrayList<I_PolledItem>();
 	
 	protected void start() {
@@ -25,6 +30,7 @@ public class DefaultPollingDaemon implements Runnable, I_PollingDaemon {
 				Thread.yield();
 				Thread.sleep(200);
 			} catch (InterruptedException e) {
+				log.error(e.getMessage(), e);
 				return;
 			}
 		}
