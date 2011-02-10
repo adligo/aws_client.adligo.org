@@ -5,7 +5,6 @@ import java.util.List;
 
 public class DefaultPollingDaemon implements Runnable, I_PollingDaemon {
 	private volatile List<I_PolledItem> items = new ArrayList<I_PolledItem>();
-	private Thread daemonThread;
 	
 	protected void start() {
 		Thread daemonThread = new Thread(this);

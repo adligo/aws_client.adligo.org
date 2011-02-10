@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project basedir="." default="jar" name="aws_client">
+	<import file="${user.home}/conf/adligo/build.xml"/>
+</project>
