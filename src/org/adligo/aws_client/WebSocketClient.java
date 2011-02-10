@@ -8,30 +8,27 @@ package org.adligo.aws_client;
  */
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.net.Socket;
 import java.net.URI;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 
-import javax.net.SocketFactory;
-import javax.net.ssl.SSLSocketFactory;
-
+import org.adligo.i.adi.client.InvocationException;
+import org.adligo.i.adig.client.GRegistry;
+import org.adligo.i.adig.client.I_GCheckedInvoker;
 import org.adligo.i.log.client.Log;
 import org.adligo.i.log.client.LogFactory;
 import org.adligo.i.util.client.Event;
-import org.adligo.i.util.client.I_Event;
 import org.adligo.i.util.client.I_Listener;
+import org.adligo.jse.util.JSECommonInit;
 
 /**
  * An implementation of a WebSocket protocol client.
@@ -43,12 +40,14 @@ public class WebSocketClient {
 	public static final String UNSUPPORTED_PROTOCOL_2 = " must be one of  (ws, wss) for instance ws://localhost:8080/somePath ";
 
 	private static final Log log = LogFactory.getLog(WebSocketClient.class);
+	private static final I_GCheckedInvoker<URI, I_IO> IO_FACTORY = GRegistry.getCheckedInvoker(
+			AwsClientInvokerNames.IO_FACTORY, URI.class, I_IO.class);
 	
 	/** The url. */
 	private URI mUrl;
 
 	/** The socket. */
-	private Socket mSocket;
+	private I_IO mSocket;
 
 	/** Whether the handshake is complete. */
 	private boolean mHandshakeComplete;
@@ -75,6 +74,13 @@ public class WebSocketClient {
 	private I_PollingDaemon daemon;
 	
 	private WebSocketPolledItem polledItem;
+	
+	static {
+		//init the log factory if it hasn't been done
+		JSECommonInit.callLogDebug("" + WebSocketClient.class);
+		AwsRegistry.setUp();
+	}
+	
 	/**
 	 * Creates a new WebSocket targeting the specified URL.
 	 * @param url The URL for the socket.
@@ -122,7 +128,15 @@ public class WebSocketClient {
 
 		String origin = "http://" + host;
 
-		mSocket = createSocket();
+		try {
+			mSocket = IO_FACTORY.invoke(mUrl);
+		} catch (InvocationException x) {
+			//convert it back to a IOException so the client only has one exception 
+			//type to deal with
+			IOException toThrow = new IOException(x.getMessage());
+			toThrow.initCause(x);
+			throw toThrow;
+		}
 		int port = mSocket.getPort();
 		if (port != 80) {
 			host = host + ":" + port;
@@ -179,28 +193,6 @@ public class WebSocketClient {
 		mHandshakeComplete = true;
 	}
 
-	private Socket createSocket() throws java.io.IOException {
-		String scheme = mUrl.getScheme();
-		String host = mUrl.getHost();
-
-		int port = mUrl.getPort();
-		if (port == -1) {
-			if (scheme.equals("wss")) {
-				port = 443;
-			} else if (scheme.equals("ws")) {
-				port = 80;
-			} else {
-				throw new IllegalArgumentException("Unsupported scheme");
-			}
-		}
-
-		if (scheme.equals("wss")) {
-			SocketFactory factory = SSLSocketFactory.getDefault();
-			return factory.createSocket(host, port);
-		 } else {
-			 return new Socket(host, port);
-		 }
-	}
 
 	/**
 	 * Sends the specified string as a data frame.
@@ -246,42 +238,38 @@ public class WebSocketClient {
 	 * Receives the next data frame.
 	 * @return The received data. a byte[0] if there was a io issue
 	 */
-	private byte[] readNextBytes()  {
-		try {
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			int b = mInput.read();
-			if ((b & 0x80) == 0x80) {
-				// Skip data frame
-				int len = 0;
-				do {
-					b = mInput.read() & 0x7f;
-					len = len * 128 + b;
-				} while ((b & 0x80) != 0x80);
-	
-				for (int i = 0; i < len; i++) {
-					mInput.read();
-				}
+	private byte[] readNextBytes()  throws IOException {
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		int b = mInput.read();
+		if ((b & 0x80) == 0x80) {
+			// Skip data frame
+			int len = 0;
+			do {
+				b = mInput.read() & 0x7f;
+				len = len * 128 + b;
+			} while ((b & 0x80) != 0x80);
+
+			for (int i = 0; i < len; i++) {
+				mInput.read();
 			}
-	
-			while (true) {
-				b = mInput.read();
-				if (b == 0xff) {
-					break;
-				}
-				baos.write(b);		
-			}
-	
-			return baos.toByteArray();
-		} catch (IOException x) {
-			log.error(x.getMessage(), x);
 		}
-		return new byte[0];
+
+		while (true) {
+			b = mInput.read();
+			if (b == 0xff) {
+				break;
+			}
+			baos.write(b);		
+		}
+
+		return baos.toByteArray();
 	}
 
 	/**
 	 * disconnects from the server
 	 * any IOExceptions will be sent to debug
 	 *  here (what could the client do with them anyway if it's closing)
+	 *  close them again ????
 	 */
 	public void disconnect() {
 		try {
@@ -298,13 +286,7 @@ public class WebSocketClient {
 				log.debug(x.getMessage(), x);
 			}
 		}
-		try {	
-			mSocket.close();
-		} catch (IOException x) {
-			if (log.isDebugEnabled()) {
-				log.debug(x.getMessage(), x);
-			}
-		}
+		mSocket.close();
 		if (daemon != null) {
 			daemon.removeItem(polledItem);
 		}
@@ -325,21 +307,31 @@ public class WebSocketClient {
 	}
 	
 	void poll() {
-		byte [] bytes = readNextBytes();
-		if (bytes.length > 0) {
-			Event e = new Event(this);
-			Object data = bytes;
-			if (output_format == WebSocketClientConfig.OUTPUT_FORMAT.UTF8_STRING) {
-				try {
-					data = new String(bytes, "UTF-8");
-				} catch (UnsupportedEncodingException g) {
-					e.setException(g);
+		Event e = new Event(this);
+		try {
+			byte [] bytes = readNextBytes();
+			if (bytes.length > 0) {
+				
+				Object data = bytes;
+				if (output_format == WebSocketClientConfig.OUTPUT_FORMAT.UTF8_STRING) {
+					try {
+						data = new String(bytes, "UTF-8");
+					} catch (UnsupportedEncodingException g) {
+						e.setException(g);
+					}
 				}
+				e.setValue(data);
 			}
-			e.setValue(data);
-			for (I_Listener listen: listeners) {
-				listen.onEvent(new Event(e));
+		} catch (IOException x) {
+			//pass the exception back to the client, which will 
+			//probably disconnect and reconnect or something like that
+			if (log.isDebugEnabled()) {
+				log.debug(x.getMessage(), x);
 			}
+			e.setException(x);
+		}
+		for (I_Listener listen: listeners) {
+			listen.onEvent(new Event(e));
 		}
 	}
 }
