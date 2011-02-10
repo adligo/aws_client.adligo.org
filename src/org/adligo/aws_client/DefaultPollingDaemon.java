@@ -28,7 +28,7 @@ public class DefaultPollingDaemon implements Runnable, I_PollingDaemon {
 			}
 			try {
 				Thread.yield();
-				Thread.sleep(200);
+				Thread.sleep(100);
 			} catch (InterruptedException e) {
 				log.error(e.getMessage(), e);
 				return;
