@@ -241,21 +241,45 @@ public class WebSocketClient {
 	private byte[] readNextBytes()  throws IOException {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		int b = mInput.read();
+		int byteCounter = 1;
+		byteCounter++;
+		
+		if (log.isDebugEnabled()) {
+			log.debug("readNextBytes first byte is " + (int) b);
+		}
 		if ((b & 0x80) == 0x80) {
 			// Skip data frame
 			int len = 0;
 			do {
-				b = mInput.read() & 0x7f;
+				b = mInput.read();
+				if (b == -1) {
+					throw new IOException("Server was disconnected abruptly.");
+				}
+				b = b & 0x7f;
+				if (log.isDebugEnabled()) {
+					log.debug("readNextBytes a " + byteCounter++ + " byte is " + (int) b);
+				}
 				len = len * 128 + b;
 			} while ((b & 0x80) != 0x80);
 
 			for (int i = 0; i < len; i++) {
-				mInput.read();
+				b = mInput.read();
+				if (log.isDebugEnabled()) {
+					log.debug("readNextBytes b " + byteCounter++ + " byte is " + (int) b);
+				}
 			}
+		} else if (b == -1) {
+			throw new IOException("Server was disconnected abruptly.");
 		}
 
 		while (true) {
 			b = mInput.read();
+			if (b == -1) {
+				throw new IOException("Server was disconnected abruptly.");
+			}
+			if (log.isDebugEnabled()) {
+				log.debug("readNextBytes c " + byteCounter++ + " byte is " + (int) b);
+			}
 			if (b == 0xff) {
 				break;
 			}
