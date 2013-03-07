@@ -7,5 +7,6 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/jse_util"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/adi"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/adig"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/params"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

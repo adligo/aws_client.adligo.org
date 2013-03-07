@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.UUID;
 
 import org.adligo.i.adi.client.InvocationException;
 import org.adligo.i.adig.client.GRegistry;
@@ -29,6 +30,8 @@ import org.adligo.i.log.client.LogFactory;
 import org.adligo.i.util.client.Event;
 import org.adligo.i.util.client.I_Listener;
 import org.adligo.jse.util.JSECommonInit;
+import org.adligo.models.params.client.I_XMLBuilder;
+import org.adligo.models.params.client.XMLBuilder;
 
 /**
  * An implementation of a WebSocket protocol client.
@@ -152,13 +155,16 @@ public class WebSocketClient implements I_WebSocketClient {
 			}
 		}
 
+		String key = genKey();
+		
 		String request = "GET "+path+" HTTP/1.1\r\n" +
 		         	     "Upgrade: WebSocket\r\n" +
 		         	     "Connection: Upgrade\r\n" +
 		         	     "Host: "+host+"\r\n" +
-		         	     "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\n\r" +
-		         	     "Sec-WebSocket-Protocol: chat\n\r" +
 		         	     "Sec-WebSocket-Version: 13\n\r" +
+		         	     "Sec-WebSocket-Key: " + key + "\n\r" +
+		         	     "Sec-WebSocket-Origin: "+origin+"\r\n" +
+		         	     "Sec-WebSocket-Protocol: chat\n\r" +
 		         	     "Origin: "+origin+"\r\n" +
 		         	     extraHeaders.toString() +
 		         	     "\r\n";
@@ -196,6 +202,28 @@ public class WebSocketClient implements I_WebSocketClient {
 		}
 
 		mHandshakeComplete = true;
+	}
+
+	private String genKey() {
+		I_XMLBuilder builder = new XMLBuilder();
+		byte [] sixteen = new byte[16];
+		UUID uuid = UUID.randomUUID();
+		String uuidString = uuid.toString();
+		char [] chars = uuidString.toCharArray();
+		int set = 0;
+		for (int i = 0; i < chars.length; i++) {
+			char c = chars[i];
+			if (c == '-') {
+				//skip
+			} else if (set >= 15){
+				break;
+			} else {
+				sixteen[set++] = (byte) c;
+			}
+		}
+		builder.appendBase64(sixteen);
+		String key = builder.toXmlString();
+		return key;
 	}
 
 
