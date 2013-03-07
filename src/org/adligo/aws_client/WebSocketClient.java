@@ -45,6 +45,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	private static final Log log = LogFactory.getLog(WebSocketClient.class);
 	private static final I_GCheckedInvoker<URI, I_IO> IO_FACTORY = GRegistry.getCheckedInvoker(
 			AwsClientInvokerNames.IO_FACTORY, URI.class, I_IO.class);
+	private static final String ZERO_PAD = "0000000000000000";
 	
 	/** The url. */
 	private URI mUrl;
@@ -174,9 +175,9 @@ public class WebSocketClient implements I_WebSocketClient {
 		mInput = mSocket.getInputStream();
 		BufferedReader reader = new BufferedReader(new InputStreamReader(mInput));
 		String header = reader.readLine();
-		if (!header.equals("HTTP/1.1 101 Web Socket Protocol Handshake")) {
+		if (!header.equals("HTTP/1.1 101 Switching Protocols")) {
 			throw new IOException("Invalid handshake response '" + header + 
-					"' should be 'HTTP/1.1 101 Web Socket Protocol Handshake'" );
+					"' should be 'HTTP/1.1 101 Switching Protocols'" );
 		}
 		header = reader.readLine();
 		if (!header.equals("Upgrade: WebSocket")) {
@@ -227,6 +228,22 @@ public class WebSocketClient implements I_WebSocketClient {
 	}
 
 
+	/**
+	 * 
+	 * @return
+	 */
+	private byte[] genMask() {
+		double d = Math.random();
+		String dS = "" + d;
+		dS = dS.substring(3, dS.length());
+		char [] chars = dS.toCharArray();
+		byte [] toRet = new byte[4];
+		toRet[0] = (byte) chars[0];
+		toRet[0] = (byte) chars[1];
+		toRet[0] = (byte) chars[2];
+		toRet[0] = (byte) chars[3];
+		return toRet;
+	}
 	/* (non-Javadoc)
 	 * @see org.adligo.aws_client.I_WebSocketClient#send(java.lang.String)
 	 */
@@ -238,10 +255,37 @@ public class WebSocketClient implements I_WebSocketClient {
 		if (disconnected) {
 			throw new IllegalStateException(WEB_SOCKET_HAS_DISCONNECTED);
 		}
-
-		mOutput.write(0x00);
-		mOutput.write(str.getBytes("UTF-8"));
-		mOutput.write(0xff);
+		//0000-0001 a text frame
+		mOutput.write(0x01);
+		byte [] bytes = str.getBytes("UTF-8");
+		int len = bytes.length;
+		if (len < 126) {
+			String binString = Integer.toBinaryString(len);
+			if (binString.length() < 7) {
+				binString = ZERO_PAD.substring(0, 7 - binString.length()) + binString;
+			}
+			byte b = Byte.parseByte("1" + binString.substring(1,7), 2);
+			mOutput.write((byte) len);
+		} else if (len < 65536) {
+			byte b = Byte.parseByte("11111111", 2);
+			mOutput.write(b);
+			String binString = Integer.toBinaryString(len);
+			if (binString.length() < 16) {
+				String thisPad = ZERO_PAD.substring(0, 16 - binString.length());
+				binString = thisPad + binString;
+			}
+			b = Byte.parseByte(binString.substring(0,9), 2);
+			mOutput.write(b);
+			b = Byte.parseByte(binString.substring(9,16), 2);
+			mOutput.write(b);
+		} else {
+			throw new RuntimeException("todo text messages larger than 65536 bytes");
+		}
+		
+		byte [] mask = genMask();
+		mOutput.write(mask);
+		mOutput.write(bytes);
+		//mOutput.write(0xff);
 		mOutput.flush();
 	}
 
@@ -284,7 +328,11 @@ public class WebSocketClient implements I_WebSocketClient {
 			do {
 				b = mInput.read();
 				if (b == -1) {
-					throw new IOException("Server was disconnected abruptly.");
+					for (I_Listener listener: listeners) {
+						Event e = new Event();
+						e.setException(new IOException("The server disconnected abruptly."));
+						listener.onEvent(e);
+					}
 				}
 				b = b & 0x7f;
 				if (log.isDebugEnabled()) {
@@ -300,13 +348,21 @@ public class WebSocketClient implements I_WebSocketClient {
 				}
 			}
 		} else if (b == -1) {
-			throw new IOException("Server was disconnected abruptly.");
+			for (I_Listener listener: listeners) {
+				Event e = new Event();
+				e.setException(new IOException("The server disconnected abruptly."));
+				listener.onEvent(e);
+			}
 		}
 
 		while (true) {
 			b = mInput.read();
 			if (b == -1) {
-				throw new IOException("Server was disconnected abruptly.");
+				for (I_Listener listener: listeners) {
+					Event e = new Event();
+					e.setException(new IOException("The server disconnected abruptly."));
+					listener.onEvent(e);
+				}
 			}
 			if (log.isDebugEnabled()) {
 				log.debug("readNextBytes c " + byteCounter++ + " byte is " + (int) b);
