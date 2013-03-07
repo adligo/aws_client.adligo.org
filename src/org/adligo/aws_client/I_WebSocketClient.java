@@ -3,22 +3,23 @@ package org.adligo.aws_client;
 import java.util.List;
 
 import org.adligo.i.util.client.I_Listener;
+import java.io.IOException;
 
 public interface I_WebSocketClient {
 
 	/**
 	 * Establishes the connection.
 	 */
-	public abstract void connect() throws java.io.IOException;
+	public abstract void connect() throws IOException;
 
 	/**
 	 * Sends the specified string as a data frame.
 	 * @param str The string to send.
 	 * @throws java.io.IOException
 	 */
-	public abstract void send(String str) throws java.io.IOException;
+	public abstract void send(String str) throws IOException;
 
-
+	public void send(byte [] bytes) throws IOException;
 	/**
 	 * disconnects from the server
 	 * any IOExceptions will be sent to debug

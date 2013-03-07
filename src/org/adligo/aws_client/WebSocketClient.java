@@ -261,6 +261,18 @@ public class WebSocketClient implements I_WebSocketClient {
 		writeBytes(bytes);
 	}
 
+	@Override
+	public void send(byte [] bytes) throws java.io.IOException {
+		if (!mHandshakeComplete) {
+			throw new IllegalStateException(HANDSHAKE_NOT_COMPLETE);
+		}
+		if (disconnected) {
+			throw new IllegalStateException(WEB_SOCKET_HAS_DISCONNECTED);
+		}
+		
+		writeBytes(bytes);
+	}
+	
 	private void writeBytes(byte[] bytes) throws IOException {
 		//1000-0001 a text final frame
 		mOutput.write(0x81);
