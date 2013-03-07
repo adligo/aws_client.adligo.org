@@ -33,7 +33,7 @@ import org.adligo.jse.util.JSECommonInit;
 /**
  * An implementation of a WebSocket protocol client.
  */
-public class WebSocketClient {
+public class WebSocketClient implements I_WebSocketClient {
 	public static final String WEB_SOCKET_HAS_DISCONNECTED = "WebSocket has disconnected.";
 	public static final String HANDSHAKE_NOT_COMPLETE = "Handshake not complete";
 	public static final String UNSUPPORTED_PROTOCOL = "Unsupported protocol: ";
@@ -111,9 +111,10 @@ public class WebSocketClient {
 		
 	}
 
-	/**
-	 * Establishes the connection.
+	/* (non-Javadoc)
+	 * @see org.adligo.aws_client.I_WebSocketClient#connect()
 	 */
+	@Override
 	public void connect() throws java.io.IOException {
 		String host = mUrl.getHost();
 		String path = mUrl.getPath();
@@ -146,7 +147,8 @@ public class WebSocketClient {
 		StringBuffer extraHeaders = new StringBuffer();
 		if (mHeaders != null) {
 			for (Entry<String, String> entry : mHeaders.entrySet()) {
-				extraHeaders.append(entry.getKey() + ": " + entry.getValue() + "\r\n");				
+				String header = entry.getKey() + ": " + entry.getValue() + "\r\n";
+				extraHeaders.append(header);				
 			}
 		}
 
@@ -154,6 +156,9 @@ public class WebSocketClient {
 		         	     "Upgrade: WebSocket\r\n" +
 		         	     "Connection: Upgrade\r\n" +
 		         	     "Host: "+host+"\r\n" +
+		         	     "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\n\r" +
+		         	     "Sec-WebSocket-Protocol: chat\n\r" +
+		         	     "Sec-WebSocket-Version: 13\n\r" +
 		         	     "Origin: "+origin+"\r\n" +
 		         	     extraHeaders.toString() +
 		         	     "\r\n";
@@ -164,9 +169,9 @@ public class WebSocketClient {
 		BufferedReader reader = new BufferedReader(new InputStreamReader(mInput));
 		String header = reader.readLine();
 		if (!header.equals("HTTP/1.1 101 Web Socket Protocol Handshake")) {
-			throw new IOException("Invalid handshake response");
+			throw new IOException("Invalid handshake response '" + header + 
+					"' should be 'HTTP/1.1 101 Web Socket Protocol Handshake'" );
 		}
-
 		header = reader.readLine();
 		if (!header.equals("Upgrade: WebSocket")) {
 			throw new IOException("Invalid handshake response");
@@ -194,11 +199,10 @@ public class WebSocketClient {
 	}
 
 
-	/**
-	 * Sends the specified string as a data frame.
-	 * @param str The string to send.
-	 * @throws java.io.IOException
+	/* (non-Javadoc)
+	 * @see org.adligo.aws_client.I_WebSocketClient#send(java.lang.String)
 	 */
+	@Override
 	public void send(String str) throws java.io.IOException {
 		if (!mHandshakeComplete) {
 			throw new IllegalStateException(HANDSHAKE_NOT_COMPLETE);
@@ -213,11 +217,10 @@ public class WebSocketClient {
 		mOutput.flush();
 	}
 
-	/**
-	 * Sends the specified string as a data frame.
-	 * @param str The string to send.
-	 * @throws java.io.IOException
+	/* (non-Javadoc)
+	 * @see org.adligo.aws_client.I_WebSocketClient#send(byte[])
 	 */
+	@Override
 	public void send(byte [] bytes) throws java.io.IOException {
 		if (!mHandshakeComplete) {
 			throw new IllegalStateException(HANDSHAKE_NOT_COMPLETE);
@@ -289,12 +292,10 @@ public class WebSocketClient {
 		return baos.toByteArray();
 	}
 
-	/**
-	 * disconnects from the server
-	 * any IOExceptions will be sent to debug
-	 *  here (what could the client do with them anyway if it's closing)
-	 *  close them again ????
+	/* (non-Javadoc)
+	 * @see org.adligo.aws_client.I_WebSocketClient#disconnect()
 	 */
+	@Override
 	public void disconnect() {
 		try {
 			mInput.close();
@@ -317,14 +318,26 @@ public class WebSocketClient {
 		disconnected = true;
 	}
 	
+	/* (non-Javadoc)
+	 * @see org.adligo.aws_client.I_WebSocketClient#addListener(org.adligo.i.util.client.I_Listener)
+	 */
+	@Override
 	public void addListener(I_Listener listener) {
 		listeners.add(listener);
 	}
 	
+	/* (non-Javadoc)
+	 * @see org.adligo.aws_client.I_WebSocketClient#removeListener(org.adligo.i.util.client.I_Listener)
+	 */
+	@Override
 	public void removeListener(I_Listener listener) {
 		listeners.remove(listener);
 	}
 	
+	/* (non-Javadoc)
+	 * @see org.adligo.aws_client.I_WebSocketClient#getListeners()
+	 */
+	@Override
 	public List<I_Listener> getListeners() {
 		//protect the listeners from mutation
 		return Collections.unmodifiableList(listeners); 
