@@ -161,10 +161,10 @@ public class WebSocketClient implements I_WebSocketClient {
 		         	     "Upgrade: WebSocket\r\n" +
 		         	     "Connection: Upgrade\r\n" +
 		         	     "Host: "+host+"\r\n" +
-		         	     "Sec-WebSocket-Version: 13\n\r" +
-		         	     "Sec-WebSocket-Key: " + key + "\n\r" +
+		         	     "Sec-WebSocket-Version: 13\r\n" +
+		         	     "Sec-WebSocket-Key: " + key + "\r\n" +
 		         	     "Sec-WebSocket-Origin: "+origin+"\r\n" +
-		         	     "Sec-WebSocket-Protocol: chat\n\r" +
+		         	     "Sec-WebSocket-Protocol: chat\r\n" +
 		         	     "Origin: "+origin+"\r\n" +
 		         	     extraHeaders.toString() +
 		         	     "\r\n";
