@@ -30,6 +30,7 @@ import org.adligo.i.log.client.LogFactory;
 import org.adligo.i.util.client.Event;
 import org.adligo.i.util.client.I_Listener;
 import org.adligo.jse.util.JSECommonInit;
+import org.adligo.models.params.client.EightBit;
 import org.adligo.models.params.client.I_XMLBuilder;
 import org.adligo.models.params.client.XMLBuilder;
 
@@ -255,28 +256,25 @@ public class WebSocketClient implements I_WebSocketClient {
 		if (disconnected) {
 			throw new IllegalStateException(WEB_SOCKET_HAS_DISCONNECTED);
 		}
-		//0000-0001 a text frame
-		mOutput.write(0x01);
+		//1000-0001 a text final frame
+		mOutput.write(0x81);
 		byte [] bytes = str.getBytes("UTF-8");
 		int len = bytes.length;
 		if (len < 126) {
-			String binString = Integer.toBinaryString(len);
-			if (binString.length() < 7) {
-				binString = ZERO_PAD.substring(0, 7 - binString.length()) + binString;
-			}
-			byte b = Byte.parseByte("1" + binString.substring(1,7), 2);
-			mOutput.write((byte) len);
-		} else if (len < 65536) {
-			byte b = Byte.parseByte("11111111", 2);
+			EightBit eb = new EightBit(len);
+			eb.setSlotZero(true);
+			byte b = (byte) eb.unsigned();
 			mOutput.write(b);
+		} else if (len < 65536) {
+			mOutput.write(0xFF);
 			String binString = Integer.toBinaryString(len);
 			if (binString.length() < 16) {
 				String thisPad = ZERO_PAD.substring(0, 16 - binString.length());
 				binString = thisPad + binString;
 			}
-			b = Byte.parseByte(binString.substring(0,9), 2);
+			byte b = (byte) new EightBit(binString.substring(0,9)).unsigned();
 			mOutput.write(b);
-			b = Byte.parseByte(binString.substring(9,16), 2);
+			b = (byte) new EightBit(binString.substring(9,16)).unsigned();
 			mOutput.write(b);
 		} else {
 			throw new RuntimeException("todo text messages larger than 65536 bytes");
@@ -284,7 +282,7 @@ public class WebSocketClient implements I_WebSocketClient {
 		
 		byte [] mask = genMask();
 		mOutput.write(mask);
-		mOutput.write(bytes);
+		writeMaskedpayloadLength(bytes, mask);
 		//mOutput.write(0xff);
 		mOutput.flush();
 	}
@@ -454,5 +452,27 @@ public class WebSocketClient implements I_WebSocketClient {
 		for (I_Listener listen: listeners) {
 			listen.onEvent(new Event(e));
 		}
+	}
+	
+	/**
+	 * code borrowed from jettys
+	 * 
+	 * WebSocketGeneratorRFC6455
+	 * @param payloadLength
+	 */
+	private void writeMaskedpayloadLength(byte [] payload, byte [] mask) throws IOException {
+		 int payloadLength = payload.length;
+		 
+		 byte [] trans = new byte[payloadLength];
+		 int modulo = 0;
+		 for (int i = 0; i < payloadLength; i++) {
+			byte pay = payload[i]; 
+			byte conv = (byte) (pay^mask[modulo++]); 
+			trans[i] = conv;
+			if (modulo >= 4) {
+				modulo = 0;
+			}
+		 }
+         mOutput.write(trans);
 	}
 }
