@@ -120,7 +120,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#connect()
 	 */
 	@Override
-	public void connect() throws java.io.IOException {
+	public synchronized void connect() throws java.io.IOException {
 		String host = mUrl.getHost();
 		String path = mUrl.getPath();
 		if (path.equals("")) {
@@ -256,9 +256,14 @@ public class WebSocketClient implements I_WebSocketClient {
 		if (disconnected) {
 			throw new IllegalStateException(WEB_SOCKET_HAS_DISCONNECTED);
 		}
+		
+		byte [] bytes = str.getBytes("UTF-8");
+		writeBytes(bytes);
+	}
+
+	private void writeBytes(byte[] bytes) throws IOException {
 		//1000-0001 a text final frame
 		mOutput.write(0x81);
-		byte [] bytes = str.getBytes("UTF-8");
 		int len = bytes.length;
 		if (len < 126) {
 			EightBit eb = new EightBit(len);
@@ -266,16 +271,22 @@ public class WebSocketClient implements I_WebSocketClient {
 			byte b = (byte) eb.unsigned();
 			mOutput.write(b);
 		} else if (len < 65536) {
-			mOutput.write(0xFF);
+			
+			mOutput.write(0xFE);
+			
 			String binString = Integer.toBinaryString(len);
 			if (binString.length() < 16) {
 				String thisPad = ZERO_PAD.substring(0, 16 - binString.length());
 				binString = thisPad + binString;
 			}
-			byte b = (byte) new EightBit(binString.substring(0,9)).unsigned();
+			String first = binString.substring(0,8);
+			byte b = (byte) new EightBit(first).unsigned();
 			mOutput.write(b);
-			b = (byte) new EightBit(binString.substring(9,16)).unsigned();
+			
+			String second = binString.substring(8,16);
+			b = (byte) new EightBit(second).unsigned();
 			mOutput.write(b);
+			
 		} else {
 			throw new RuntimeException("todo text messages larger than 65536 bytes");
 		}
@@ -287,43 +298,56 @@ public class WebSocketClient implements I_WebSocketClient {
 		mOutput.flush();
 	}
 
-	/* (non-Javadoc)
-	 * @see org.adligo.aws_client.I_WebSocketClient#send(byte[])
-	 */
-	@Override
-	public void send(byte [] bytes) throws java.io.IOException {
-		if (!mHandshakeComplete) {
-			throw new IllegalStateException(HANDSHAKE_NOT_COMPLETE);
-		}
-		if (disconnected) {
-			throw new IllegalStateException(WEB_SOCKET_HAS_DISCONNECTED);
-		}
-		/**
-		 * note this 0000 0001 byte may be specific to Jetty
-		 * I didn't check the wc3 recommendation for it
-		 */
-		mOutput.write(0x01);
-		mOutput.write(bytes);
-		mOutput.write(0xff);
-		mOutput.flush();
-	}
 	/**
 	 * Receives the next data frame.
 	 * @return The received data. a byte[0] if there was a io issue
 	 */
 	private byte[] readNextBytes()  throws IOException {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		int b = mInput.read();
-		int byteCounter = 1;
-		byteCounter++;
-		
-		if (log.isDebugEnabled()) {
-			log.debug("readNextBytes first byte is " + (int) b);
-		}
-		if ((b & 0x80) == 0x80) {
-			// Skip data frame
-			int len = 0;
-			do {
+		if (disconnected) {
+			return new byte[] {};
+		} else {
+			int b = mInput.read();
+			int byteCounter = 1;
+			byteCounter++;
+			
+			if (log.isDebugEnabled()) {
+				log.debug("readNextBytes first byte is " + (int) b);
+			}
+			if ((b & 0x80) == 0x80) {
+				// Skip data frame
+				int len = 0;
+				do {
+					b = mInput.read();
+					if (b == -1) {
+						for (I_Listener listener: listeners) {
+							Event e = new Event();
+							e.setException(new IOException("The server disconnected abruptly."));
+							listener.onEvent(e);
+						}
+					}
+					b = b & 0x7f;
+					if (log.isDebugEnabled()) {
+						log.debug("readNextBytes a " + byteCounter++ + " byte is " + (int) b);
+					}
+					len = len * 128 + b;
+				} while ((b & 0x80) != 0x80);
+	
+				for (int i = 0; i < len; i++) {
+					b = mInput.read();
+					if (log.isDebugEnabled()) {
+						log.debug("readNextBytes b " + byteCounter++ + " byte is " + (int) b);
+					}
+				}
+			} else if (b == -1) {
+				for (I_Listener listener: listeners) {
+					Event e = new Event();
+					e.setException(new IOException("The server disconnected abruptly."));
+					listener.onEvent(e);
+				}
+			}
+	
+			while (true) {
 				b = mInput.read();
 				if (b == -1) {
 					for (I_Listener listener: listeners) {
@@ -332,53 +356,24 @@ public class WebSocketClient implements I_WebSocketClient {
 						listener.onEvent(e);
 					}
 				}
-				b = b & 0x7f;
 				if (log.isDebugEnabled()) {
-					log.debug("readNextBytes a " + byteCounter++ + " byte is " + (int) b);
+					log.debug("readNextBytes c " + byteCounter++ + " byte is " + (int) b);
 				}
-				len = len * 128 + b;
-			} while ((b & 0x80) != 0x80);
-
-			for (int i = 0; i < len; i++) {
-				b = mInput.read();
-				if (log.isDebugEnabled()) {
-					log.debug("readNextBytes b " + byteCounter++ + " byte is " + (int) b);
+				if (b == 0xff) {
+					break;
 				}
+				baos.write(b);		
 			}
-		} else if (b == -1) {
-			for (I_Listener listener: listeners) {
-				Event e = new Event();
-				e.setException(new IOException("The server disconnected abruptly."));
-				listener.onEvent(e);
-			}
+	
+			return baos.toByteArray();
 		}
-
-		while (true) {
-			b = mInput.read();
-			if (b == -1) {
-				for (I_Listener listener: listeners) {
-					Event e = new Event();
-					e.setException(new IOException("The server disconnected abruptly."));
-					listener.onEvent(e);
-				}
-			}
-			if (log.isDebugEnabled()) {
-				log.debug("readNextBytes c " + byteCounter++ + " byte is " + (int) b);
-			}
-			if (b == 0xff) {
-				break;
-			}
-			baos.write(b);		
-		}
-
-		return baos.toByteArray();
 	}
 
 	/* (non-Javadoc)
 	 * @see org.adligo.aws_client.I_WebSocketClient#disconnect()
 	 */
 	@Override
-	public void disconnect() {
+	public synchronized void disconnect() {
 		try {
 			mInput.close();
 		} catch (IOException x) {
@@ -404,7 +399,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#addListener(org.adligo.i.util.client.I_Listener)
 	 */
 	@Override
-	public void addListener(I_Listener listener) {
+	public synchronized void addListener(I_Listener listener) {
 		listeners.add(listener);
 	}
 	
@@ -412,7 +407,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#removeListener(org.adligo.i.util.client.I_Listener)
 	 */
 	@Override
-	public void removeListener(I_Listener listener) {
+	public synchronized void removeListener(I_Listener listener) {
 		listeners.remove(listener);
 	}
 	
@@ -420,12 +415,12 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#getListeners()
 	 */
 	@Override
-	public List<I_Listener> getListeners() {
+	public synchronized List<I_Listener> getListeners() {
 		//protect the listeners from mutation
 		return Collections.unmodifiableList(listeners); 
 	}
 	
-	void poll() {
+	synchronized void poll() {
 		Event e = new Event(this);
 		try {
 			byte [] bytes = readNextBytes();

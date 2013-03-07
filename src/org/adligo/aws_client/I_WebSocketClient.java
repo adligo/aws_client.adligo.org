@@ -18,12 +18,6 @@ public interface I_WebSocketClient {
 	 */
 	public abstract void send(String str) throws java.io.IOException;
 
-	/**
-	 * Sends the specified string as a data frame.
-	 * @param str The string to send.
-	 * @throws java.io.IOException
-	 */
-	public abstract void send(byte[] bytes) throws java.io.IOException;
 
 	/**
 	 * disconnects from the server
