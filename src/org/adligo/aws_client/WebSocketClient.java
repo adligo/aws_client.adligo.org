@@ -120,7 +120,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#connect()
 	 */
 	@Override
-	public synchronized void connect() throws java.io.IOException {
+	public void connect() throws java.io.IOException {
 		String host = mUrl.getHost();
 		String path = mUrl.getPath();
 		if (path.equals("")) {
@@ -320,11 +320,7 @@ public class WebSocketClient implements I_WebSocketClient {
 				do {
 					b = mInput.read();
 					if (b == -1) {
-						for (I_Listener listener: listeners) {
-							Event e = new Event();
-							e.setException(new IOException("The server disconnected abruptly."));
-							listener.onEvent(e);
-						}
+						throw new IOException("The server disconnected abruptly.");
 					}
 					b = b & 0x7f;
 					if (log.isDebugEnabled()) {
@@ -373,7 +369,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#disconnect()
 	 */
 	@Override
-	public synchronized void disconnect() {
+	public void disconnect() {
 		try {
 			mInput.close();
 		} catch (IOException x) {
@@ -399,7 +395,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#addListener(org.adligo.i.util.client.I_Listener)
 	 */
 	@Override
-	public synchronized void addListener(I_Listener listener) {
+	public void addListener(I_Listener listener) {
 		listeners.add(listener);
 	}
 	
@@ -407,7 +403,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#removeListener(org.adligo.i.util.client.I_Listener)
 	 */
 	@Override
-	public synchronized void removeListener(I_Listener listener) {
+	public void removeListener(I_Listener listener) {
 		listeners.remove(listener);
 	}
 	
@@ -415,12 +411,12 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#getListeners()
 	 */
 	@Override
-	public synchronized List<I_Listener> getListeners() {
+	public List<I_Listener> getListeners() {
 		//protect the listeners from mutation
 		return Collections.unmodifiableList(listeners); 
 	}
 	
-	synchronized void poll() {
+	void poll() {
 		Event e = new Event(this);
 		try {
 			byte [] bytes = readNextBytes();
@@ -447,6 +443,7 @@ public class WebSocketClient implements I_WebSocketClient {
 		for (I_Listener listen: listeners) {
 			listen.onEvent(new Event(e));
 		}
+			
 	}
 	
 	/**
