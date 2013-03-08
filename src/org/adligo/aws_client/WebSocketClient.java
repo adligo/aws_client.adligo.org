@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.UUID;
 
+import org.adligo.aws_client.models.MaskingKey;
 import org.adligo.i.adi.client.InvocationException;
 import org.adligo.i.adig.client.GRegistry;
 import org.adligo.i.adig.client.I_GCheckedInvoker;
@@ -69,17 +70,12 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * if the socket has been disconnected
 	 */
 	private boolean disconnected = false;
-	/**
-	 * the list of listeners that will receive data coming back from the server
-	 */
-	private volatile List<I_Listener> listeners = new ArrayList<I_Listener>();
 	
 	private WebSocketClientConfig.OUTPUT_FORMAT output_format = WebSocketClientConfig.OUTPUT_FORMAT.UTF8_STRING;
 
-	private I_PollingDaemon daemon;
-	
-	private WebSocketPolledItem polledItem;
-	
+	private WebSocketMessageListeners listeners = new WebSocketMessageListeners();
+	private DefaultMessageHandler messageHandler = new DefaultMessageHandler();
+	private I_WebSocketReader wsReader;
 	static {
 		//init the log factory if it hasn't been done
 		JSECommonInit.callLogDebug("" + WebSocketClient.class);
@@ -108,12 +104,11 @@ public class WebSocketClient implements I_WebSocketClient {
 		if (config.getOutputFormat() != null) {
 			output_format = config.getOutputFormat();
 		}
-		
-		polledItem = new WebSocketPolledItem(this);
-		if (config.getDaemon() != null) {
-			daemon = config.getDaemon();
-		} 
-		
+		wsReader = config.getReader();
+		I_WebSocketFrameHandler framer = wsReader.getFrameHandler();
+		framer.setMessageHandler(messageHandler);
+		framer.setListeners(listeners);
+		framer.setClient(this);
 	}
 
 	/* (non-Javadoc)
@@ -193,58 +188,14 @@ public class WebSocketClient implements I_WebSocketClient {
 		do {
 			header = reader.readLine();
 		} while (!header.equals(""));
-		
-		if (daemon == null) {
-			DefaultPollingDaemon new_daemon = new DefaultPollingDaemon();
-			new_daemon.addItem(polledItem);
-			new_daemon.start();
-			daemon = new_daemon;
-		} else {
-			daemon.addItem(polledItem);
-		}
-
 		mHandshakeComplete = true;
+		
+		wsReader.setInputStream(mInput);
 	}
 
-	private String genKey() {
-		I_XMLBuilder builder = new XMLBuilder();
-		byte [] sixteen = new byte[16];
-		UUID uuid = UUID.randomUUID();
-		String uuidString = uuid.toString();
-		char [] chars = uuidString.toCharArray();
-		int set = 0;
-		for (int i = 0; i < chars.length; i++) {
-			char c = chars[i];
-			if (c == '-') {
-				//skip
-			} else if (set >= 15){
-				break;
-			} else {
-				sixteen[set++] = (byte) c;
-			}
-		}
-		builder.appendBase64(sixteen);
-		String key = builder.toXmlString();
-		return key;
-	}
+	
 
 
-	/**
-	 * 
-	 * @return
-	 */
-	private byte[] genMask() {
-		double d = Math.random();
-		String dS = "" + d;
-		dS = dS.substring(3, dS.length());
-		char [] chars = dS.toCharArray();
-		byte [] toRet = new byte[4];
-		toRet[0] = (byte) chars[0];
-		toRet[0] = (byte) chars[1];
-		toRet[0] = (byte) chars[2];
-		toRet[0] = (byte) chars[3];
-		return toRet;
-	}
 	/* (non-Javadoc)
 	 * @see org.adligo.aws_client.I_WebSocketClient#send(java.lang.String)
 	 */
@@ -303,79 +254,13 @@ public class WebSocketClient implements I_WebSocketClient {
 			throw new RuntimeException("todo text messages larger than 65536 bytes");
 		}
 		
-		byte [] mask = genMask();
+		byte [] mask = MaskingKey.genMask();
 		mOutput.write(mask);
 		writeMaskedpayloadLength(bytes, mask);
 		//mOutput.write(0xff);
 		mOutput.flush();
 	}
 
-	/**
-	 * Receives the next data frame.
-	 * @return The received data. a byte[0] if there was a io issue
-	 */
-	private byte[] readNextBytes()  throws IOException {
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		if (disconnected) {
-			return new byte[] {};
-		} else {
-			int b = mInput.read();
-			int byteCounter = 1;
-			byteCounter++;
-			
-			if (log.isDebugEnabled()) {
-				log.debug("readNextBytes first byte is " + (int) b);
-			}
-			if ((b & 0x80) == 0x80) {
-				// Skip data frame
-				int len = 0;
-				do {
-					b = mInput.read();
-					if (b == -1) {
-						throw new IOException("The server disconnected abruptly.");
-					}
-					b = b & 0x7f;
-					if (log.isDebugEnabled()) {
-						log.debug("readNextBytes a " + byteCounter++ + " byte is " + (int) b);
-					}
-					len = len * 128 + b;
-				} while ((b & 0x80) != 0x80);
-	
-				for (int i = 0; i < len; i++) {
-					b = mInput.read();
-					if (log.isDebugEnabled()) {
-						log.debug("readNextBytes b " + byteCounter++ + " byte is " + (int) b);
-					}
-				}
-			} else if (b == -1) {
-				for (I_Listener listener: listeners) {
-					Event e = new Event();
-					e.setException(new IOException("The server disconnected abruptly."));
-					listener.onEvent(e);
-				}
-			}
-	
-			while (true) {
-				b = mInput.read();
-				if (b == -1) {
-					for (I_Listener listener: listeners) {
-						Event e = new Event();
-						e.setException(new IOException("The server disconnected abruptly."));
-						listener.onEvent(e);
-					}
-				}
-				if (log.isDebugEnabled()) {
-					log.debug("readNextBytes c " + byteCounter++ + " byte is " + (int) b);
-				}
-				if (b == 0xff) {
-					break;
-				}
-				baos.write(b);		
-			}
-	
-			return baos.toByteArray();
-		}
-	}
 
 	/* (non-Javadoc)
 	 * @see org.adligo.aws_client.I_WebSocketClient#disconnect()
@@ -397,65 +282,7 @@ public class WebSocketClient implements I_WebSocketClient {
 			}
 		}
 		mSocket.close();
-		if (daemon != null) {
-			daemon.removeItem(polledItem);
-		}
 		disconnected = true;
-	}
-	
-	/* (non-Javadoc)
-	 * @see org.adligo.aws_client.I_WebSocketClient#addListener(org.adligo.i.util.client.I_Listener)
-	 */
-	@Override
-	public void addListener(I_Listener listener) {
-		listeners.add(listener);
-	}
-	
-	/* (non-Javadoc)
-	 * @see org.adligo.aws_client.I_WebSocketClient#removeListener(org.adligo.i.util.client.I_Listener)
-	 */
-	@Override
-	public void removeListener(I_Listener listener) {
-		listeners.remove(listener);
-	}
-	
-	/* (non-Javadoc)
-	 * @see org.adligo.aws_client.I_WebSocketClient#getListeners()
-	 */
-	@Override
-	public List<I_Listener> getListeners() {
-		//protect the listeners from mutation
-		return Collections.unmodifiableList(listeners); 
-	}
-	
-	void poll() {
-		Event e = new Event(this);
-		try {
-			byte [] bytes = readNextBytes();
-			if (bytes.length > 0) {
-				
-				Object data = bytes;
-				if (output_format == WebSocketClientConfig.OUTPUT_FORMAT.UTF8_STRING) {
-					try {
-						data = new String(bytes, "UTF-8");
-					} catch (UnsupportedEncodingException g) {
-						e.setException(g);
-					}
-				}
-				e.setValue(data);
-			}
-		} catch (IOException x) {
-			//pass the exception back to the client, which will 
-			//probably disconnect and reconnect or something like that
-			if (log.isDebugEnabled()) {
-				log.debug(x.getMessage(), x);
-			}
-			e.setException(x);
-		}
-		for (I_Listener listen: listeners) {
-			listen.onEvent(new Event(e));
-		}
-			
 	}
 	
 	/**
@@ -478,5 +305,39 @@ public class WebSocketClient implements I_WebSocketClient {
 			}
 		 }
          mOutput.write(trans);
+	}
+
+	public void addListener(I_Listener listener) {
+		listeners.addListener(listener);
+	}
+
+	public void removeListener(I_Listener listener) {
+		listeners.removeListener(listener);
+	}
+
+	public List<I_Listener> getListeners() {
+		return listeners.getListeners();
+	}
+	
+	public static String genKey() {
+		I_XMLBuilder builder = new XMLBuilder();
+		byte [] sixteen = new byte[16];
+		UUID uuid = UUID.randomUUID();
+		String uuidString = uuid.toString();
+		char [] chars = uuidString.toCharArray();
+		int set = 0;
+		for (int i = 0; i < chars.length; i++) {
+			char c = chars[i];
+			if (c == '-') {
+				//skip
+			} else if (set >= 15){
+				break;
+			} else {
+				sixteen[set++] = (byte) c;
+			}
+		}
+		builder.appendBase64(sixteen);
+		String key = builder.toXmlString();
+		return key;
 	}
 }

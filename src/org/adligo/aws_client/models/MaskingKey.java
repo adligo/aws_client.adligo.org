@@ -1,5 +1,10 @@
 package org.adligo.aws_client.models;
 
+import java.util.UUID;
+
+import org.adligo.models.params.client.I_XMLBuilder;
+import org.adligo.models.params.client.XMLBuilder;
+
 public class MaskingKey {
 	private byte[] bytes = new byte[4];
 	
@@ -15,4 +20,23 @@ public class MaskingKey {
 		}
 		return bytes[p];
 	}
+	
+
+	/**
+	 * 
+	 * @return
+	 */
+	public static byte[] genMask() {
+		double d = Math.random();
+		String dS = "" + d;
+		dS = dS.substring(3, dS.length());
+		char [] chars = dS.toCharArray();
+		byte [] toRet = new byte[4];
+		toRet[0] = (byte) chars[0];
+		toRet[0] = (byte) chars[1];
+		toRet[0] = (byte) chars[2];
+		toRet[0] = (byte) chars[3];
+		return toRet;
+	}
+	
 }

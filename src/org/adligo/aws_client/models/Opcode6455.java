@@ -1,5 +1,8 @@
 package org.adligo.aws_client.models;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.adligo.models.params.client.EightBit;
 
 public enum Opcode6455 {
@@ -16,11 +19,30 @@ public enum Opcode6455 {
 		onesAndZeros = eb.toOnesAndZeros().substring(4, 8);
 	}
 	
+	public boolean isControl() {
+		if (num >= 8) {
+			return true;
+		}
+		return false;
+	}
+	
 	public String getOnesAndZeros() {
 		return onesAndZeros;
 	}
 	
 	public short getNum() {
 		return num;
+	}
+	
+	public static Opcode6455 getForNumber(int value) {
+		Opcode6455 [] opcodes = Opcode6455.values();
+		//i think a loop may actually be faster here for only 16 comparisions
+		for (int i = 0; i < opcodes.length; i++) {
+			Opcode6455 op = opcodes[i];
+			if (op.getNum() == (short) value) {
+				return op;
+			}
+		}
+		return null;
 	}
 }

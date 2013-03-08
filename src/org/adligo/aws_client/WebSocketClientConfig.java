@@ -3,17 +3,20 @@ package org.adligo.aws_client;
 import java.net.URI;
 import java.util.HashMap;
 
+import org.adligo.aws_client.models.WebSocketProtocol;
+
 public class WebSocketClientConfig {
 	public enum OUTPUT_FORMAT{ BYTES, UTF8_STRING};
 	
 	private URI url;
 	private HashMap<String, String> headers;
 	private OUTPUT_FORMAT outputFormat;
-	/**
-	 * allows the client to pass in a shared polling daemon
-	 * (back ground thread which the client must start)
-	 */
-	private I_PollingDaemon daemon;
+	private WebSocketProtocol protocol = WebSocketProtocol.RFC6544;
+	private I_WebSocketReader reader = null;
+	
+	public WebSocketClientConfig(WebSocketProtocol p) {
+		setProtocol(p);
+	}
 	
 	public URI getUrl() {
 		return url;
@@ -33,11 +36,22 @@ public class WebSocketClientConfig {
 	public void setOutputFormat(OUTPUT_FORMAT outputFormat) {
 		this.outputFormat = outputFormat;
 	}
-	public I_PollingDaemon getDaemon() {
-		return daemon;
+	public I_WebSocketReader getReader() {
+		return reader;
 	}
-	public void setDaemon(I_PollingDaemon daemon) {
-		this.daemon = daemon;
+	public void setReader(I_WebSocketReader reader) {
+		this.reader = reader;
+	}
+	public WebSocketProtocol getProtocol() {
+		return protocol;
+	}
+	
+	public void setProtocol(WebSocketProtocol p) {
+		protocol = p;
+		switch (protocol) {
+			default:
+				reader = new WebSocket6455Reader();
+		}
 	}
 	
 }

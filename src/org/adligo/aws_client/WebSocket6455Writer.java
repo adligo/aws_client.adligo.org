@@ -1,12 +1,12 @@
 package org.adligo.aws_client;
 
 /**
- * This will read a the next frame from a InputStream
+ * This will write a frame to a OutputStream
  * //TODO extract code from WebSocketClient
  * 
  * @author scott
  *
  */
-public class WebSocket6455FrameReader {
+public class WebSocket6455Writer {
 
 }

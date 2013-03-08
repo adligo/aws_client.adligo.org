@@ -18,8 +18,8 @@ public interface I_WebSocketClient {
 	 * @throws java.io.IOException
 	 */
 	public abstract void send(String str) throws IOException;
-
 	public void send(byte [] bytes) throws IOException;
+	
 	/**
 	 * disconnects from the server
 	 * any IOExceptions will be sent to debug
