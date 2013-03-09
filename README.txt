@@ -25,9 +25,13 @@ suggestion two;
 
 This implementation only allows a 16 bit extended payload and will do the following for larger data sets;
    onSending a message larger than 65536 bytes, 
-   			throw a RuntimeException stating it's to much data
+   			split the message into multiple frames each less than 65536
    onRecieving a message larger than 65536, 
    			log a exception stating maximum payload data is 65536 bytes
    			and skip over the bytes in the frames payload data section
 
+Note this should work ok as the Jetty 8.1.8 WebSocketServlet has the following init parameter;
+The initParameter "bufferSize" can be used to set the buffer size,
+ * which is also the max frame byte size (default 8192).
+ so you would want to increase this to 65544 (max extended payload+ header stuff)
    	
