@@ -21,17 +21,24 @@ public interface I_WebSocketClient {
 	public void send(byte [] bytes) throws IOException;
 	
 	/**
-	 * disconnects from the server
+	 * disconnects from the server, in a way that may be reconnected later
 	 * any IOExceptions will be sent to debug
 	 *  here (what could the client do with them anyway if it's closing)
 	 *  close them again ????
 	 */
 	public abstract void disconnect();
-
+	/**
+	 * shuts down the web socket client for good
+	 * may not be reconnected after shutdown
+	 */
+	public abstract void shutdown();
+	
 	public abstract void addListener(I_Listener listener);
 
 	public abstract void removeListener(I_Listener listener);
 
 	public abstract List<I_Listener> getListeners();
+	
+	public boolean isOpen();
 
 }

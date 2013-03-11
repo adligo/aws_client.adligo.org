@@ -37,7 +37,7 @@ public class WebSocket6455FrameHandler implements I_WebSocketFrameHandler {
 					break;
 				default:
 					listeners.sendEvent(
-							createEvent(WebSocketConnectionStates.CONNECTION_ALIVE));
+							createEvent(WebSocketConnectionStates.CONNECTION_OPEN));
 			}
 		} else {
 			byte [] bytes = null;
@@ -72,6 +72,7 @@ public class WebSocket6455FrameHandler implements I_WebSocketFrameHandler {
 	public void onIoDisconnect() {
 		listeners.sendEvent(
 				createEvent(WebSocketConnectionStates.CONNECTION_CLOSED));
+		client.disconnect();
 	}
 
 	private Event createEvent(Object data) {

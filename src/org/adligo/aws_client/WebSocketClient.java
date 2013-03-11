@@ -39,6 +39,8 @@ import org.adligo.models.params.client.XMLBuilder;
  * An implementation of a WebSocket protocol client.
  */
 public class WebSocketClient implements I_WebSocketClient {
+	public static final String WEB_SOCKET_CLIENT_IS_SHUTDOWN = "WebSocketClient is Shutdown.";
+	public static final String THIS_WEB_SOCKET_CLIENT_HAS_BEEN_SHUTDOWN_AND_MAY_NO_LONGER_CONNECT = "This WebSocketClient has been shutdown and may no longer connect";
 	public static final String WEB_SOCKET_HAS_DISCONNECTED = "WebSocket has disconnected.";
 	public static final String HANDSHAKE_NOT_COMPLETE = "Handshake not complete";
 	public static final String UNSUPPORTED_PROTOCOL = "Unsupported protocol: ";
@@ -48,18 +50,14 @@ public class WebSocketClient implements I_WebSocketClient {
 	private static final I_GCheckedInvoker<URI, I_IO> IO_FACTORY = GRegistry.getCheckedInvoker(
 			AwsClientInvokerNames.IO_FACTORY, URI.class, I_IO.class);
 	private static final String ZERO_PAD = "0000000000000000";
+	private static volatile int threadId = 0;
+	private boolean shutdown = false;
 	
 	/** The url. */
 	private URI mUrl;
 
 	/** The socket. */
 	private I_IO mSocket;
-
-	/** Whether the handshake is complete. */
-	private boolean mHandshakeComplete;
-
-	/** The socket input stream. */
-	private InputStream mInput;
 
 	/** The socket mOutput stream. */
 	private OutputStream mOutput;
@@ -69,13 +67,14 @@ public class WebSocketClient implements I_WebSocketClient {
 	/**
 	 * if the socket has been disconnected
 	 */
-	private boolean disconnected = false;
+	private boolean open = false;
 	
-	private WebSocketClientConfig.OUTPUT_FORMAT output_format = WebSocketClientConfig.OUTPUT_FORMAT.UTF8_STRING;
 
 	private WebSocketMessageListeners listeners = new WebSocketMessageListeners();
 	private DefaultMessageHandler messageHandler = new DefaultMessageHandler();
 	private I_WebSocketReader wsReader;
+	private Thread readerThread = null;
+	
 	static {
 		//init the log factory if it hasn't been done
 		JSECommonInit.callLogDebug("" + WebSocketClient.class);
@@ -101,14 +100,15 @@ public class WebSocketClient implements I_WebSocketClient {
 			mHeaders.putAll(headers);
 		}
 		
-		if (config.getOutputFormat() != null) {
-			output_format = config.getOutputFormat();
-		}
 		wsReader = config.getReader();
 		I_WebSocketFrameHandler framer = wsReader.getFrameHandler();
 		framer.setMessageHandler(messageHandler);
 		framer.setListeners(listeners);
 		framer.setClient(this);
+		
+		readerThread = new Thread(wsReader);
+		readerThread.setName("WebSocketReader-" + threadId++);
+		
 	}
 
 	/* (non-Javadoc)
@@ -116,6 +116,9 @@ public class WebSocketClient implements I_WebSocketClient {
 	 */
 	@Override
 	public void connect() throws java.io.IOException {
+		if (shutdown) {
+			throw new IOException(THIS_WEB_SOCKET_CLIENT_HAS_BEEN_SHUTDOWN_AND_MAY_NO_LONGER_CONNECT);
+		}
 		String host = mUrl.getHost();
 		String path = mUrl.getPath();
 		if (path.equals("")) {
@@ -168,8 +171,8 @@ public class WebSocketClient implements I_WebSocketClient {
 		mOutput.write(request.getBytes());
 		mOutput.flush();
 
-		mInput = mSocket.getInputStream();
-		BufferedReader reader = new BufferedReader(new InputStreamReader(mInput));
+		InputStream input = mSocket.getInputStream();
+		BufferedReader reader = new BufferedReader(new InputStreamReader(input));
 		String header = reader.readLine();
 		if (!header.equals("HTTP/1.1 101 Switching Protocols")) {
 			throw new IOException("Invalid handshake response '" + header + 
@@ -188,9 +191,14 @@ public class WebSocketClient implements I_WebSocketClient {
 		do {
 			header = reader.readLine();
 		} while (!header.equals(""));
-		mHandshakeComplete = true;
 		
-		wsReader.setInputStream(mInput);
+		wsReader.setInputStream(input);
+		open = true;
+		
+		wsReader.setReading(true);
+		if (!readerThread.isAlive()) {
+			readerThread.start();
+		}
 	}
 
 	
@@ -200,28 +208,25 @@ public class WebSocketClient implements I_WebSocketClient {
 	 * @see org.adligo.aws_client.I_WebSocketClient#send(java.lang.String)
 	 */
 	@Override
-	public void send(String str) throws java.io.IOException {
-		if (!mHandshakeComplete) {
-			throw new IllegalStateException(HANDSHAKE_NOT_COMPLETE);
-		}
-		if (disconnected) {
-			throw new IllegalStateException(WEB_SOCKET_HAS_DISCONNECTED);
-		}
-		
+	public synchronized void send(String str) throws java.io.IOException {
+		isAvailableToSend();
 		byte [] bytes = str.getBytes("UTF-8");
 		writeBytes(bytes);
 	}
 
 	@Override
-	public void send(byte [] bytes) throws java.io.IOException {
-		if (!mHandshakeComplete) {
-			throw new IllegalStateException(HANDSHAKE_NOT_COMPLETE);
+	public synchronized void send(byte [] bytes) throws java.io.IOException {
+		isAvailableToSend();
+		writeBytes(bytes);
+	}
+
+	private void isAvailableToSend() {
+		if (shutdown) {
+			throw new IllegalStateException(WEB_SOCKET_CLIENT_IS_SHUTDOWN);
 		}
-		if (disconnected) {
+		if (!open) {
 			throw new IllegalStateException(WEB_SOCKET_HAS_DISCONNECTED);
 		}
-		
-		writeBytes(bytes);
 	}
 	
 	private void writeBytes(byte[] bytes) throws IOException {
@@ -267,13 +272,7 @@ public class WebSocketClient implements I_WebSocketClient {
 	 */
 	@Override
 	public void disconnect() {
-		try {
-			mInput.close();
-		} catch (IOException x) {
-			if (log.isDebugEnabled()) {
-				log.debug(x.getMessage(), x);
-			}
-		}
+		wsReader.setReading(false);
 		try {
 			mOutput.close();
 		} catch (IOException x) {
@@ -282,7 +281,7 @@ public class WebSocketClient implements I_WebSocketClient {
 			}
 		}
 		mSocket.close();
-		disconnected = true;
+		open = false;
 	}
 	
 	/**
@@ -339,5 +338,21 @@ public class WebSocketClient implements I_WebSocketClient {
 		builder.appendBase64(sixteen);
 		String key = builder.toXmlString();
 		return key;
+	}
+	
+	public boolean isOpen() {
+		return open;
+	}
+
+	@Override
+	public synchronized void shutdown() {
+		shutdown = true;
+		open = false;
+		wsReader.shutdown();
+		try {
+			readerThread.join();
+		} catch (InterruptedException x) {
+			log.error(x.getMessage(), x);
+		}
 	}
 }

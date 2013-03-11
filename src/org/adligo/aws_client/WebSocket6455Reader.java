@@ -6,6 +6,8 @@ import java.io.InputStream;
 import org.adligo.aws_client.models.MaskingKey;
 import org.adligo.aws_client.models.Opcode6455;
 import org.adligo.aws_client.models.WebSocket6455FrameMutant;
+import org.adligo.i.log.client.Log;
+import org.adligo.i.log.client.LogFactory;
 import org.adligo.models.params.client.EightBit;
 
 /**
@@ -16,27 +18,37 @@ import org.adligo.models.params.client.EightBit;
  *
  */
 public class WebSocket6455Reader implements Runnable, I_WebSocketReader {
+	private static final Log log = LogFactory.getLog(WebSocket6455Reader.class);
+	
 	public static final int MAX_FRAME_SIZE = 65536;
 	private InputStream input;
 	private I_WebSocketFrameHandler handler = new WebSocket6455FrameHandler();
 	
-	/**
-	 * reading is a synonym for connected here
-	 */
+	
 	private boolean reading = false;
+	private boolean shutdown = false;
+	private volatile boolean readingFrame = false;
+	private volatile boolean readingMessage = false;
 	
 	public void run() {
-		reading = true;
-		try {
-			while (reading) {
-				read();
+		while (!shutdown) {
+			if (reading) {
+				try {
+					readFrame();
+				} catch (IOException x) {
+					handler.onIoDisconnect();
+				}
+			} else {
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException x) {
+					//do nothing;
+				}
 			}
-		} catch (IOException x) {
-			handler.onIoDisconnect();
 		}
 	}
 		
-	public void read() throws IOException {
+	public void readFrame() throws IOException {
 		WebSocket6455FrameMutant frame = readNextFrameHeaderThroughOpcode();
 		if (frame == null) {
 			reading = false;
@@ -92,14 +104,21 @@ public class WebSocket6455Reader implements Runnable, I_WebSocketReader {
 	private WebSocket6455FrameMutant readNextFrameHeaderThroughOpcode()  throws IOException {
 		if (reading) {
 			byte [] bytes = new byte[1];
+			readingFrame = false;
 			if (input.read(bytes) == -1) {
 				return null;
 			} else {
+				readingFrame = true;
 				WebSocket6455FrameMutant frame = new WebSocket6455FrameMutant();
 				
 				byte b = bytes[0];
 				EightBit eb = new EightBit(b);
 				frame.setFin(eb.getSlotZero());
+				if (!frame.isFin()) {
+					readingMessage = true;
+				} else {
+					readingMessage = false;
+				}
 				frame.setRsv1(eb.getSlotOne());
 				frame.setRsv2(eb.getSlotTwo());
 				frame.setRsv3(eb.getSlotThree());
@@ -194,7 +213,7 @@ public class WebSocket6455Reader implements Runnable, I_WebSocketReader {
 	}
 
 	@Override
-	public void setInputStream(InputStream is) {
+	public synchronized void setInputStream(InputStream is) {
 		input = is;
 	}
 
@@ -211,5 +230,42 @@ public class WebSocket6455Reader implements Runnable, I_WebSocketReader {
 	@Override
 	public I_WebSocketFrameHandler getFrameHandler() {
 		return handler;
+	}
+
+	public synchronized boolean isReading() {
+		return reading;
+	}
+
+	public synchronized void setReading(boolean p) {
+		if (!p) {
+			//hey stop reading
+			while (readingMessage || readingFrame) {
+				//but I'm in the middle of reading a message or a frame
+				// so wait until message/frame is complete
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException x) {
+					log.error(x.getMessage(), x);
+				}
+			}
+			try {
+				input.close();
+			} catch (IOException x) {
+				//note this is debug because there isnt' much you can do , close it again?
+				if (log.isDebugEnabled()) {
+					log.debug(x.getMessage(), x);
+				}
+			}
+		}
+		this.reading = p;
+	}
+
+	public synchronized boolean isShutdown() {
+		return shutdown;
+	}
+
+	public synchronized void shutdown() {
+		setReading(false);
+		shutdown = true;
 	}
 }
