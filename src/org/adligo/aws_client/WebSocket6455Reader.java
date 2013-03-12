@@ -249,7 +249,9 @@ public class WebSocket6455Reader implements Runnable, I_WebSocketReader {
 				}
 			}
 			try {
-				input.close();
+				if (input != null) {
+					input.close();
+				}
 			} catch (IOException x) {
 				//note this is debug because there isnt' much you can do , close it again?
 				if (log.isDebugEnabled()) {

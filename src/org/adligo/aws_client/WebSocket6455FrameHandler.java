@@ -16,7 +16,7 @@ public class WebSocket6455FrameHandler implements I_WebSocketFrameHandler {
 	/**
 	 * 1Mb default
 	 */
-	private int bufferSize = 2^20;
+	private int bufferSize = 1048576;
 	private int messageBytesSoFar = 0;
 	private ByteBuffer bb = ByteBuffer.allocate(bufferSize);
 	
@@ -46,12 +46,17 @@ public class WebSocket6455FrameHandler implements I_WebSocketFrameHandler {
 			} else {
 				bytes = iFrame.getPayloadData();
 			}
-			bb.put(bytes, messageBytesSoFar, bytes.length);
+			if (log.isDebugEnabled()) {
+				log.debug("frame bytes are " + bytes.length);
+			}
+			//bb.put(bytes, messageBytesSoFar, bytes.length);
 			if (iFrame.isFin()) {
-				byte [] bbFin = bb.array();
+				byte [] bbFin = bytes;
 				if (opcode == Opcode6455.TEXT) {
 					try {
+						
 						String data = new String(bbFin, "UTF-8");
+						data = data.trim();
 						listeners.sendEvent(createEvent(data));
 					} catch (UnsupportedEncodingException e) {
 						log.error(e.getMessage(), e);

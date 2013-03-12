@@ -8,15 +8,11 @@ package org.adligo.aws_client;
  */
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
@@ -28,7 +24,6 @@ import org.adligo.i.adig.client.GRegistry;
 import org.adligo.i.adig.client.I_GCheckedInvoker;
 import org.adligo.i.log.client.Log;
 import org.adligo.i.log.client.LogFactory;
-import org.adligo.i.util.client.Event;
 import org.adligo.i.util.client.I_Listener;
 import org.adligo.jse.util.JSECommonInit;
 import org.adligo.models.params.client.EightBit;
@@ -180,12 +175,14 @@ public class WebSocketClient implements I_WebSocketClient {
 		}
 		header = reader.readLine();
 		if (!header.equals("Upgrade: WebSocket")) {
-			throw new IOException("Invalid handshake response");
+			throw new IOException("Invalid handshake response '" + header +
+					"' should be 'Upgrade: WebSocket'");
 		}
 
 		header = reader.readLine();
 		if (!header.equals("Connection: Upgrade")) {
-			throw new IOException("Invalid handshake response");
+			throw new IOException("Invalid handshake response '" +header +
+					"' should be 'Connection: Upgrade'");
 		}
 
 		do {
@@ -196,7 +193,7 @@ public class WebSocketClient implements I_WebSocketClient {
 		open = true;
 		
 		wsReader.setReading(true);
-		if (!readerThread.isAlive()) {
+		if (Thread.State.NEW == readerThread.getState()) {
 			readerThread.start();
 		}
 	}
@@ -210,7 +207,13 @@ public class WebSocketClient implements I_WebSocketClient {
 	@Override
 	public synchronized void send(String str) throws java.io.IOException {
 		isAvailableToSend();
+		if (log.isDebugEnabled()) {
+			log.debug("sending string " + str + " which is " + str.length() + " characters.");
+		}
 		byte [] bytes = str.getBytes("UTF-8");
+		if (log.isDebugEnabled()) {
+			log.debug("sending string " + str + " which is " + bytes.length + " utf-8 bytes.");
+		}
 		writeBytes(bytes);
 	}
 
@@ -274,13 +277,17 @@ public class WebSocketClient implements I_WebSocketClient {
 	public void disconnect() {
 		wsReader.setReading(false);
 		try {
-			mOutput.close();
+			if (mOutput != null) {
+				mOutput.close();
+			}
 		} catch (IOException x) {
 			if (log.isDebugEnabled()) {
 				log.debug(x.getMessage(), x);
 			}
 		}
-		mSocket.close();
+		if (mSocket != null) {
+			mSocket.close();
+		}
 		open = false;
 	}
 	
