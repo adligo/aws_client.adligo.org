@@ -50,7 +50,8 @@ public class WebSocketClient implements I_WebSocketClient {
 	
 	/** The url. */
 	private URI mUrl;
-
+	private String cookie;
+	
 	/** The socket. */
 	private I_IO mSocket;
 
@@ -174,6 +175,10 @@ public class WebSocketClient implements I_WebSocketClient {
 					"' should be 'HTTP/1.1 101 Switching Protocols'" );
 		}
 		header = reader.readLine();
+		while (header.contains("Set-Cookie: ")) {
+			cookie = header.substring(12, header.length());
+			header = reader.readLine();
+		}
 		if (!header.equals("Upgrade: WebSocket")) {
 			throw new IOException("Invalid handshake response '" + header +
 					"' should be 'Upgrade: WebSocket'");
