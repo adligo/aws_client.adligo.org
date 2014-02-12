@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.adligo.i.util.client.Event;
-import org.adligo.i.util.client.I_Listener;
+import org.adligo.i.util.shared.Event;
+import org.adligo.i.util.shared.I_Listener;
 
 class WebSocketMessageListeners {
 	/**

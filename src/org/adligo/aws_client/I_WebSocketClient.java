@@ -2,7 +2,8 @@ package org.adligo.aws_client;
 
 import java.util.List;
 
-import org.adligo.i.util.client.I_Listener;
+import org.adligo.i.util.shared.I_Listener;
+
 import java.io.IOException;
 
 public interface I_WebSocketClient {

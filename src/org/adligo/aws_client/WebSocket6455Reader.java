@@ -6,8 +6,8 @@ import java.io.InputStream;
 import org.adligo.aws_client.models.MaskingKey;
 import org.adligo.aws_client.models.Opcode6455;
 import org.adligo.aws_client.models.WebSocket6455FrameMutant;
-import org.adligo.i.log.client.Log;
-import org.adligo.i.log.client.LogFactory;
+import org.adligo.i.log.shared.Log;
+import org.adligo.i.log.shared.LogFactory;
 import org.adligo.models.params.client.EightBit;
 
 /**

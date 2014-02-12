@@ -8,9 +8,9 @@ import java.net.UnknownHostException;
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLSocketFactory;
 
-import org.adligo.i.adi.client.InvocationException;
-import org.adligo.i.adig.client.BaseGInvoker;
-import org.adligo.i.adig.client.I_GCheckedInvoker;
+import org.adligo.i.adi.shared.InvocationException;
+import org.adligo.i.adig.shared.BaseGInvoker;
+import org.adligo.i.adig.shared.I_GCheckedInvoker;
 
 public class IO_Factory extends BaseGInvoker implements I_GCheckedInvoker<URI, I_IO>{
 

@@ -5,8 +5,8 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/i_log"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/i_util"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/jse_util"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/adi"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/adig"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/params"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/i_adi"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/i_adig"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

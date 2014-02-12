@@ -19,12 +19,12 @@ import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.adligo.aws_client.models.MaskingKey;
-import org.adligo.i.adi.client.InvocationException;
-import org.adligo.i.adig.client.GRegistry;
-import org.adligo.i.adig.client.I_GCheckedInvoker;
-import org.adligo.i.log.client.Log;
-import org.adligo.i.log.client.LogFactory;
-import org.adligo.i.util.client.I_Listener;
+import org.adligo.i.adi.shared.InvocationException;
+import org.adligo.i.adig.shared.GRegistry;
+import org.adligo.i.adig.shared.I_GCheckedInvoker;
+import org.adligo.i.log.shared.Log;
+import org.adligo.i.log.shared.LogFactory;
+import org.adligo.i.util.shared.I_Listener;
 import org.adligo.jse.util.JSECommonInit;
 import org.adligo.models.params.client.EightBit;
 import org.adligo.models.params.client.I_XMLBuilder;

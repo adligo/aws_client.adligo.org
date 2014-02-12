@@ -1,6 +1,6 @@
 package org.adligo.aws_client;
 
-import org.adligo.i.util.client.Event;
+import org.adligo.i.util.shared.Event;
 
 public class DefaultMessageHandler implements I_WebSocketMessageHandler {
 	private WebSocketMessageListeners listeners;
