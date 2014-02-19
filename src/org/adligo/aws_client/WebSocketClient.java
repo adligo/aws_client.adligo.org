@@ -26,9 +26,9 @@ import org.adligo.i.log.shared.Log;
 import org.adligo.i.log.shared.LogFactory;
 import org.adligo.i.util.shared.I_Listener;
 import org.adligo.jse.util.JSECommonInit;
-import org.adligo.models.params.client.EightBit;
-import org.adligo.models.params.client.I_XMLBuilder;
-import org.adligo.models.params.client.XMLBuilder;
+import org.adligo.models.params.shared.EightBit;
+import org.adligo.models.params.shared.I_XMLBuilder;
+import org.adligo.models.params.shared.XMLBuilder;
 
 /**
  * An implementation of a WebSocket protocol client.

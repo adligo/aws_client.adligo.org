@@ -2,8 +2,8 @@ package org.adligo.aws_client.models;
 
 import java.util.UUID;
 
-import org.adligo.models.params.client.I_XMLBuilder;
-import org.adligo.models.params.client.XMLBuilder;
+import org.adligo.models.params.shared.I_XMLBuilder;
+import org.adligo.models.params.shared.XMLBuilder;
 
 public class MaskingKey {
 	private byte[] bytes = new byte[4];

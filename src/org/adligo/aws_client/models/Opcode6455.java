@@ -3,7 +3,7 @@ package org.adligo.aws_client.models;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.adligo.models.params.client.EightBit;
+import org.adligo.models.params.shared.EightBit;
 
 public enum Opcode6455 {
 	CONTINUATION(0), TEXT(1), BINARY(2), NON_CONTROL_3(3), NON_CONTROL_4(4)
