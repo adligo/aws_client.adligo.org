@@ -4,8 +4,8 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/i_log"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/i_util"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/jse_util"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/params"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/jse_util.adligo.org"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/params.adligo.org"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/i_adi"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/i_adig"/>
 	<classpathentry kind="output" path="bin"/>
