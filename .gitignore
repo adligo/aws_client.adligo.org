@@ -1,3 +1,5 @@
-/bin
-/classes
+/bin/
+/build/
+/classes/
+/classes_e/
 /aws_client.jar
